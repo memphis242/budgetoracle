@@ -201,7 +201,7 @@ int main(int argc, char * argv[])
          *ptr = tolower(*ptr);
 
       // Check for quit commands
-      if ( strcmp(userinput, "exit") || strcmp(userinput, "quit") )
+      if ( strcmp(userinput, "exit") == 0 || strcmp(userinput, "quit") == 0 )
          break;
    }
 
