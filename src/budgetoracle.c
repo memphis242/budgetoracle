@@ -141,7 +141,7 @@ int main(int argc, char * argv[])
       // calls, and assume the subsequent calls for the loop will be fine.
       // If an error does indeed occur, we break immediately and assume we can't
       // print to stdout anymore.
-      rc = printf("> ");
+      rc = printf("\nbudget-oracle > ");
       if ( rc < (int)((sizeof("> ") - 1)) )
       {
          mainrc |= MAINRC_UNABLE_TO_PRINT;
