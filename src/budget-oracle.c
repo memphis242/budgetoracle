@@ -18,6 +18,8 @@
 #include <time.h>
 #include <errno.h>
 #include <assert.h>
+// 3rd Party Library Headers
+#include <glib.h>
 
 #ifndef _GNU_SOURCE
 #define strerrorname_np(str) "strerrorname_np() NOT IMPLEMENTED"
@@ -25,6 +27,7 @@
 
 /*** Macro/constexpr Functions ***/
 #define ARR_LEN(arr) ( sizeof(arr) / sizeof(arr[0]) )
+#define TO_LOWER(arr)
 
 constexpr char TESTFILE[] = "./test.tl"; // .tl stands for "transaction list"
 
@@ -45,6 +48,7 @@ static const char * const WelcomeMsgs[] =
 
 /*** Forward Function Declarations ***/
 static void handleSIGINT(int signum);
+static inline void toLowercase(char arr[], size_t len);
 
 /*** Local Types ***/
 // TODO: Put these RC's into an X-macro header so that you can also create an strerror_np() kind of lookup
@@ -56,6 +60,21 @@ enum MainRC
    MAINRC_UNABLE_TO_TIME          = 0x0004,
    MAINRC_UNABLE_TO_PRINT         = 0x0008,
 };
+
+// TODO: Might be best to put all the struct types into a separate hdr to shorten this main src file...
+// TODO: Maybe abstract away the data structure implementation /w wrappers, so I can switch out the
+//       underlying libraries easier...
+//struct TransactionList
+//{
+//   GArray * daily;
+//   GArray * monthly;
+//   GArray * yearly;
+//};
+//struct BudgetInfo
+//{
+//   uint8_t app_id;
+//   
+//};
 
 /******************************************************************************/
 int main(int argc, char * argv[])
@@ -125,7 +144,7 @@ int main(int argc, char * argv[])
 
    // Welcome Message
    srand( (unsigned int)time(nullptr) );
-   size_t welcome_msg_idx = (size_t)( rand() % ARR_LEN(WelcomeMsgs) );
+   size_t welcome_msg_idx = (size_t)rand() % ARR_LEN(WelcomeMsgs);
    assert( welcome_msg_idx < ARR_LEN(WelcomeMsgs) );
    (void)printf( "%s\n", WelcomeMsgs[welcome_msg_idx] );
 
@@ -196,13 +215,82 @@ int main(int argc, char * argv[])
       assert( newlineptr < (userinput + sizeof(userinput)) );
       *newlineptr = '\0';
 
-      // Convert user input to lower-case so that commands are case insensitive
-      for ( char * ptr = userinput; ptr != nullptr && ptr < newlineptr; ++ptr )
-         *ptr = tolower(*ptr);
+      // Commands will be treated as case-insensitive
+      toLowercase(userinput, sizeof userinput);
 
       // Check for quit commands
       if ( strcmp(userinput, "exit") == 0 || strcmp(userinput, "quit") == 0 )
          break;
+
+      // TODO: Authenticate user /w password
+
+      // TODO: Execute commands
+      if ( strcmp(userinput, "add") == 0 )
+      {
+         char cmdargs[100];
+
+         (void)printf("\tTransaction Type: ");
+         (void)fflush(stdout);
+
+         if ( fgets(cmdargs, sizeof cmdargs, stdin) == nullptr )
+         {
+            // FIXME: Need a better way to simply exit out of this command but not the REPL...
+            printf("Cancelling session...\n");
+            continue;
+         }
+         toLowercase(cmdargs, sizeof cmdargs);
+
+         if ( strcmp(cmdargs, "regular") == 0 )
+         {
+            (void)printf("\tdaily, weekly, monthly, or yearly: ");
+            (void)fflush(stdout);
+
+            if ( fgets(cmdargs, sizeof cmdargs, stdin ) == nullptr )
+            {
+               // FIXME: Need a better way to simply exit out of this command but not the REPL...
+               printf("Cancelling session...\n");
+               continue;
+            }
+            toLowercase(cmdargs, sizeof cmdargs);
+
+            if ( strcmp(cmdargs, "daily") == 0 )
+            {
+               
+            }
+            else if ( strcmp(cmdargs, "monthly") == 0 )
+            {
+
+            }
+            else if ( strcmp(cmdargs, "yearly") == 0 )
+            {
+
+            }
+            else
+            {
+               (void)printf("Invalid argument: %s. Please try again.\n", cmdargs);
+               continue;
+            }
+         }
+
+         else if ( strcmp(cmdargs, "oneoff") == 0 )
+         {
+            
+         }
+
+         else
+         {
+            (void)printf("Invalid argument: %s. Please try again.\n", cmdargs);
+            continue;
+         }
+      }
+
+      else
+      {
+         (void)fprintf( stderr,
+                        "Invalid command: %s. Please try again.\n",
+                        userinput );
+         continue;
+      }
    }
 
    assert(nreps < WHILE_LOOP_CAP); // If assertion fails, we infinite looped somehow...
@@ -220,4 +308,10 @@ static void handleSIGINT(int signum)
    (void)signum; // This signal handler is only for SIGINT, so signum isn't needed
 
    bUserEndedSession = true;
+}
+
+static inline void toLowercase(char arr[], size_t len)
+{
+   for ( char * ptr = arr; ptr != nullptr && ptr < (arr + len) && *ptr != '\0'; ++ptr )
+      *ptr = (char)tolower(*ptr);
 }
