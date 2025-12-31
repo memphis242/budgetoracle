@@ -31,6 +31,18 @@ constexpr char TESTFILE[] = "./test.tl"; // .tl stands for "transaction list"
 /*** File-Scope Variables ***/
 static volatile sig_atomic_t bUserEndedSession = false;
 
+static const char * const WelcomeMsgs[] =
+{
+   "You are now speaking to the budget oracle 💸🔮... OoooOoOoooo",
+   "So... You wish to peek into your fiscal future!",
+   "Welcome, welcome, my child.",
+   "To face life, we must at times be bold... In our hands, the future, we hold!",
+   "This is the budget oracle speaking, please hold.",
+   "You again?",
+   "What's up doc?",
+   "It's been so long, where have you been? Am I not, your next of kin!"
+};
+
 /*** Forward Function Declarations ***/
 static void handleSIGINT(int signum);
 
@@ -111,7 +123,11 @@ int main(int argc, char * argv[])
                     today.tm_year + 1900 );
 #  endif
 
-   (void)printf("You are now speaking to the budget oracle 💸🔮... OoooOoOoooo\n\n");
+   // Welcome Message
+   srand( (unsigned int)time(nullptr) );
+   size_t welcome_msg_idx = (size_t)( rand() % ARR_LEN(WelcomeMsgs) );
+   assert( welcome_msg_idx < ARR_LEN(WelcomeMsgs) );
+   (void)printf( "%s\n", WelcomeMsgs[welcome_msg_idx] );
 
    // The Main REPL Loop
    constexpr size_t WHILE_LOOP_CAP = 1'000'000;
