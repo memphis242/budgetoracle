@@ -64,17 +64,44 @@ enum MainRC
 // TODO: Might be best to put all the struct types into a separate hdr to shorten this main src file...
 // TODO: Maybe abstract away the data structure implementation /w wrappers, so I can switch out the
 //       underlying libraries easier...
-//struct TransactionList
-//{
-//   GArray * daily;
-//   GArray * monthly;
-//   GArray * yearly;
-//};
-//struct BudgetInfo
-//{
-//   uint8_t app_id;
-//   
-//};
+
+struct Transaction
+{
+   _Decimal32 amount;
+   const char * desc;
+};
+
+struct MonthlyTransactions
+{
+   GArray * days[31]; // vector of transactions
+   // FIXME: Rule for transactions that are past 28 days to account for month size variation...
+};
+struct YearlyTransactions
+{
+   GArray * days[365 + 1]; // vector of transactions
+   // FIXME: Figure out leap years...
+   // A leap year is divisible by 4 AND (NOT divisible by 100 OR divisible by 400)
+};
+struct OneOff
+{
+   struct tm date;
+   struct Transaction transaction;
+};
+
+struct TransactionList
+{
+   GArray * daily; // vector of transactions
+   struct MonthlyTransactions monthly;
+   struct YearlyTransactions yearly;
+   GArray * oneoffs; // vector of struct OneOff
+};
+
+struct Budget
+{
+   uint8_t id;
+   _Decimal32 curr_balance;
+   struct TransactionList transactions;
+};
 
 /******************************************************************************/
 int main(int argc, char * argv[])
@@ -83,6 +110,10 @@ int main(int argc, char * argv[])
    int rc; // for various system calls
    bool able_to_time = true;
    bool able_to_print = true;
+
+   GArray * budgets = g_array_new( false, /* zero_terminated */
+                                   true,  /* clear_ */
+                                   sizeof(struct Budget) /* element_size */ );
 
    // Register signal handler for SIGINT - one way for the user to close the app
    struct sigaction sa_cfg = {0}; // Includes setting SA_RESTART to 0 to prevent
@@ -297,6 +328,10 @@ int main(int argc, char * argv[])
 
    if ( able_to_print )
       (void)printf("\nUser has ended session. Goodbye!\n\n");
+
+   // Free all heap data
+   // FIXME: Zero-out all members
+   g_array_free(budgets, false);
 
    return mainrc;
 }
