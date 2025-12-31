@@ -26,6 +26,8 @@
 /*** Macro/constexpr Functions ***/
 #define ARR_LEN(arr) ( sizeof(arr) / sizeof(arr[0]) )
 
+constexpr char TESTFILE[] = "./test.tl"; // .tl stands for "transaction list"
+
 /*** File-Scope Variables ***/
 static volatile sig_atomic_t bUserEndedSession = false;
 
@@ -40,6 +42,7 @@ enum MainRC
    MAINRC_SIGINT_REGISTRATION_ERR = 0x0001,
    MAINRC_INFINITE_LOOP_DETECTED  = 0x0002,
    MAINRC_UNABLE_TO_TIME          = 0x0004,
+   MAINRC_UNABLE_TO_PRINT         = 0x0008,
 };
 
 /******************************************************************************/
@@ -48,6 +51,7 @@ int main(int argc, char * argv[])
    int mainrc = MAINRC_ALLGOOD;
    int rc; // for various system calls
    bool able_to_time = true;
+   bool able_to_print = true;
 
    // Register signal handler for SIGINT - one way for the user to close the app
    struct sigaction sa_cfg = {0}; // Includes setting SA_RESTART to 0 to prevent
@@ -57,7 +61,7 @@ int main(int argc, char * argv[])
    rc = sigaction( SIGINT, &sa_cfg, nullptr /* old sig action */ );
    if ( rc != 0 )
    {
-      fprintf( stderr,
+      (void)fprintf( stderr,
                "Warning: sigaction() failed to register interrupt signal handler.\n"
                "Returned: %d, errno: %s (%d): %s\n"
                "You won't be able to stop the program gracefully /w Ctrl+C, although \n"
@@ -75,7 +79,7 @@ int main(int argc, char * argv[])
       //        Even if all the user wanted to do was update their transaction
       //        list, we'll probably rely on timestamping to check integrity of
       //        the transaction list...
-      fprintf( stderr,
+      (void)fprintf( stderr,
                "Warning: Unable to time()\n"
                "time() returned %ld\n"
                "errno: %s (%d): %s\n",
@@ -89,7 +93,7 @@ int main(int argc, char * argv[])
    struct tm today;
    if ( localtime_r( &nowtime, &today) == nullptr )
    {
-      fprintf( stderr,
+      (void)fprintf( stderr,
                "Warning: Unable to localtime_r()\n"
                "localtime_r() returned nullptr\n"
                "errno: %s (%d): %s\n",
@@ -101,13 +105,13 @@ int main(int argc, char * argv[])
 
 #  ifndef NDEBUG
    if ( able_to_time )
-      printf("Today's Date: %02d-%02d-%04d\n",
-             today.tm_mon + 1,
-             today.tm_mday,
-             today.tm_year + 1900 );
+      (void)printf( "Today's Date: %02d-%02d-%04d\n",
+                    today.tm_mon + 1,
+                    today.tm_mday,
+                    today.tm_year + 1900 );
 #  endif
 
-   printf("You are now speaking to the budget oracle 💸🔮... OoooOoOoooo\n\n");
+   (void)printf("You are now speaking to the budget oracle 💸🔮... OoooOoOoooo\n\n");
 
    // The Main REPL Loop
    constexpr size_t WHILE_LOOP_CAP = 1'000'000;
@@ -116,8 +120,40 @@ int main(int argc, char * argv[])
    {
       char userinput[200] = {0};
 
-      printf("> ");
-      fflush(stdout);
+      // Technically, any printf-like call may report an error, but I'm not going
+      // to check each and every call. Instead, I'll check these first couple of
+      // calls, and assume the subsequent calls for the loop will be fine.
+      // If an error does indeed occur, we break immediately and assume we can't
+      // print to stdout anymore.
+      rc = printf("> ");
+      if ( rc < (int)((sizeof("> ") - 1)) )
+      {
+         mainrc |= MAINRC_UNABLE_TO_PRINT;
+         // Since we can't print to stdout, we can't print the usual errno msg.
+         // I still want some indication of the failure...
+         if ( INT_WIDTH > 16 && errno < 0xFF )
+            mainrc |= (errno << 8);
+         else
+            mainrc = errno; // Discard old mainrc and prioritize this errno
+
+         able_to_print = false;
+         break;
+      }
+
+      rc = fflush(stdout); // Force flush of "> " because we'll be waiting after
+      if ( rc != 0 )
+      {
+         mainrc |= MAINRC_UNABLE_TO_PRINT;
+         // Since we can't print to stdout, we can't print the usual errno msg.
+         // I still want some indication of the failure...
+         if ( INT_WIDTH > 16 && errno < 0xFF )
+            mainrc |= (errno << 8);
+         else
+            mainrc = errno; // Discard old mainrc and prioritize this errno
+
+         able_to_print = false;
+         break;
+      }
 
       if ( fgets(userinput, sizeof userinput, stdin) == nullptr )
       {
@@ -136,7 +172,7 @@ int main(int argc, char * argv[])
          while ( (c = fgetc(stdin)) != '\n' && c != EOF );
 
          // Take this as an invalid input and request the user to try again.
-         fprintf( stderr,
+         (void)fprintf( stderr,
                   "Error: Too many characters in user input encountered.\n"
                   "Please try again.\n" );
          continue;
@@ -155,7 +191,8 @@ int main(int argc, char * argv[])
 
    assert(nreps < WHILE_LOOP_CAP); // If assertion fails, we infinite looped somehow...
 
-   printf("\nUser has ended session. Goodbye!\n\n");
+   if ( able_to_print )
+      (void)printf("\nUser has ended session. Goodbye!\n\n");
 
    return mainrc;
 }
