@@ -31,14 +31,15 @@
 static volatile sig_atomic_t bUserEndedSession = false;
 
 /*** Forward Function Declarations ***/
-static void handleSIGNIT(int signum);
+static void handleSIGINT(int signum);
 
 /*** Local Types ***/
+// TODO: Put these RC's into an X-macro header so that you can also create an strerror_np() kind of lookup
 enum MainRC
 {
    MAINRC_ALLGOOD                 = 0x0000,
-   MAINRC_SIGINT_REGISTRATION_ERR = 0x0001;
-   MAINRC_INFINITE_LOOP_DETECTED  = 0x0002;
+   MAINRC_SIGINT_REGISTRATION_ERR = 0x0001,
+   MAINRC_INFINITE_LOOP_DETECTED  = 0x0002,
 };
 
 /******************************************************************************/
@@ -59,12 +60,15 @@ int main(int argc, char * argv[])
                "Warning: sigaction() failed to register interrupt signal handler.\n"
                "Returned: %d, errno: %s (%d): %s\n"
                "You won't be able to stop the program gracefully /w Ctrl+C, although \n"
-               "Ctrl+C will still terminate the program.\n"
+               "Ctrl+C will still terminate the program.\n",
                rc, strerrorname_np(errno), errno, strerror(errno) );
 
       mainrc |= MAINRC_SIGINT_REGISTRATION_ERR;
    }
 
+   printf("You are now speaking to the budget oracle 💸🔮... OoooOoOoooo\n\n");
+
+   // The Main REPL Loop
    constexpr size_t WHILE_LOOP_CAP = 1'000'000;
    size_t nreps = 0;
    while ( !bUserEndedSession && nreps++ < WHILE_LOOP_CAP )
@@ -80,16 +84,44 @@ int main(int argc, char * argv[])
          // interruption occured. Either way, time to exit gracefully.
          break;
       }
+
+      // Replace newline /w null-termination
+      char * newlineptr = memchr(userinput, '\n', sizeof userinput);
+      if ( nullptr == newlineptr )
+      {
+         // There were more characters than the size of the input buffer to fgets()
+         // Clear the remaining characters in stdin...
+         int c;
+         while ( (c = fgetc(stdin)) != '\n' && c != EOF );
+
+         // Take this as an invalid input and request the user to try again.
+         fprintf( stderr,
+                  "Error: Too many characters in user input encountered.\n"
+                  "Please try again.\n" );
+         continue;
+      }
+      assert( newlineptr < (userinput + sizeof(userinput)) );
+      *newlineptr = '\0';
+
+      // Convert user input to lower-case so that commands are case insensitive
+      for ( char * ptr = userinput; ptr != nullptr && ptr < newlineptr; ++ptr )
+         *ptr = tolower(*ptr);
+
+      // Check for quit commands
+      if ( strcmp(userinput, "exit") || strcmp(userinput, "quit") )
+         break;
    }
 
-   assert(nreps < WHILE_LOOP_CAP);
+   assert(nreps < WHILE_LOOP_CAP); // If assertion fails, we infinite looped somehow...
+
+   printf("\nUser has ended session. Goodbye!\n\n");
 
    return mainrc;
 }
 
 /*** Local Function Implementations ***/
 
-static void handleSIGNIT(int signum)
+static void handleSIGINT(int signum)
 {
    (void)signum; // This signal handler is only for SIGINT, so signum isn't needed
 
