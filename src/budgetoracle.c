@@ -12,13 +12,12 @@
 #include <stdint.h>
 #include <limits.h>
 #include <string.h>
-#include <assert.h>
 #include <ctype.h>
 #include <stdatomic.h>
-#include <errno.h>
-// POSIX Headers
 #include <signal.h>
 #include <time.h>
+#include <errno.h>
+#include <assert.h>
 
 #ifndef _GNU_SOURCE
 #define strerrorname_np(str) "strerrorname_np() NOT IMPLEMENTED"
@@ -40,6 +39,7 @@ enum MainRC
    MAINRC_ALLGOOD                 = 0x0000,
    MAINRC_SIGINT_REGISTRATION_ERR = 0x0001,
    MAINRC_INFINITE_LOOP_DETECTED  = 0x0002,
+   MAINRC_UNABLE_TO_TIME          = 0x0004,
 };
 
 /******************************************************************************/
@@ -47,6 +47,7 @@ int main(int argc, char * argv[])
 {
    int mainrc = MAINRC_ALLGOOD;
    int rc; // for various system calls
+   bool able_to_time = true;
 
    // Register signal handler for SIGINT - one way for the user to close the app
    struct sigaction sa_cfg = {0}; // Includes setting SA_RESTART to 0 to prevent
@@ -65,6 +66,46 @@ int main(int argc, char * argv[])
 
       mainrc |= MAINRC_SIGINT_REGISTRATION_ERR;
    }
+
+   // Get today's date before proceeding, as it will probably be relevant
+   time_t nowtime = time(nullptr);
+   if ( nowtime == (time_t)-1 )
+   {
+      // FIXME: If we can't time(), that may be a deal-breaker... End program?
+      //        Even if all the user wanted to do was update their transaction
+      //        list, we'll probably rely on timestamping to check integrity of
+      //        the transaction list...
+      fprintf( stderr,
+               "Warning: Unable to time()\n"
+               "time() returned %ld\n"
+               "errno: %s (%d): %s\n",
+               nowtime, strerrorname_np(errno), errno, strerror(errno) );
+
+      mainrc |= MAINRC_UNABLE_TO_TIME;
+      able_to_time = false; // TODO: Make sure this is being used downstream!
+   }
+
+   tzset();
+   struct tm today;
+   if ( localtime_r( &nowtime, &today) == nullptr )
+   {
+      fprintf( stderr,
+               "Warning: Unable to localtime_r()\n"
+               "localtime_r() returned nullptr\n"
+               "errno: %s (%d): %s\n",
+               strerrorname_np(errno), errno, strerror(errno) );
+
+      mainrc |= MAINRC_UNABLE_TO_TIME;
+      able_to_time = false;
+   }
+
+#  ifndef NDEBUG
+   if ( able_to_time )
+      printf("Today's Date: %02d-%02d-%04d\n",
+             today.tm_mon + 1,
+             today.tm_mday,
+             today.tm_year + 1900 );
+#  endif
 
    printf("You are now speaking to the budget oracle 💸🔮... OoooOoOoooo\n\n");
 
