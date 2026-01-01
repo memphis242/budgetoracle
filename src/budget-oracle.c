@@ -265,8 +265,8 @@ int main(int argc, char * argv[])
 
          if ( fgets(cmdargs, sizeof cmdargs, stdin) == nullptr )
          {
-            // FIXME: Need a better way to simply exit out of this command but not the REPL...
-            printf("Cancelling session...\n");
+            clearerr(stdin); // Removes EOF from stream
+            printf("\nExiting command...\n");
             continue;
          }
          toLowercase(cmdargs, sizeof cmdargs);
@@ -278,8 +278,8 @@ int main(int argc, char * argv[])
 
             if ( fgets(cmdargs, sizeof cmdargs, stdin ) == nullptr )
             {
-               // FIXME: Need a better way to simply exit out of this command but not the REPL...
-               printf("Cancelling session...\n");
+               clearerr(stdin); // Removes EOF from stream
+               printf("\nExiting command...\n");
                continue;
             }
             toLowercase(cmdargs, sizeof cmdargs);
