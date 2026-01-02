@@ -5,6 +5,7 @@
  */
 
 /*** Header Includes ***/
+#define __STDC_WANT_IEC_60559_EXT__ 1 // Some compilers will only expose DFP support like this
 // Standard C Headers
 #include <stdio.h>
 #include <stdlib.h>
@@ -40,8 +41,21 @@ static volatile sig_atomic_t bUserEndedSession = false;
 
 /*** Forward Function Declarations ***/
 static void handleSIGINT(int signum);
+static inline bool isNulTerminated(char str[]);
 static inline void toLowercase(char arr[], size_t len);
 static inline bool getUserInput(char * buf, size_t sz);
+// As of the time of this writing (Jan 2, 2026), there still isn't much support
+// for decimal FP I/O formatting... So, I need to implement my own, although...
+// TODO: Look into using IBM's libdfp...
+static inline bool strtodec32(
+      _Decimal32 * result,
+      const char * const restrict str );
+
+static inline bool dec32tostr(
+      char * const str,
+      size_t maxlen,
+      _Decimal32 val );
+{
 
 /*** Local Types ***/
 // TODO: Put these RC's into an X-macro header so that you can also create an strerror_np() kind of lookup
@@ -267,7 +281,23 @@ int main(int argc, char * argv[])
 
             if ( strcmp(cmdargs, "daily") == 0 )
             {
-               
+               (void)printf("amount: ");
+               (void)fflush(stdout);
+
+               succeeded = getUserInput(cmdargs, sizeof cmdargs);
+               if ( !succeeded )
+                  continue;
+
+               // TODO: Account for different currencies
+
+               // TODO: Convert decimal FP number string to number
+               _Decimal32 num = 0.0df;
+
+               (void)printf("Number received after conversion: %H\n", num);
+
+               char amount[16] = {0};
+               // TODO: Get decimal floating-point input from user...
+
             }
             else if ( strcmp(cmdargs, "monthly") == 0 )
             {
@@ -326,6 +356,19 @@ static void handleSIGINT(int signum)
    bUserEndedSession = true;
 }
 
+static inline bool isNulTerminated(char str[])
+{
+   assert(str != nullptr);
+
+   constexpr size_t MAX_STR_LEN = 10'000;
+
+   for ( size_t i = 0; i < MAX_STR_LEN; ++i )
+      if ( str[i] == '\0' )
+         return true;
+
+   return false;
+}
+
 static inline void toLowercase(char arr[], size_t len)
 {
    for ( char * ptr = arr; ptr != nullptr && ptr < (arr + len) && *ptr != '\0'; ++ptr )
@@ -366,4 +409,47 @@ static inline bool getUserInput(char * buf, size_t sz)
    toLowercase(buf, sz);
 
    return true;
+}
+
+static inline bool strtodec32(
+      _Decimal32 * result,
+      const char * const restrict str )
+{
+   assert(result != nullptr);
+   assert(str != nullptr);
+   assert(IsNulTerminated(str));
+
+   constexpr size_t MAX_NUM_LEN = 15;
+   constexpr size_t MAX_LEADING_WHITESPACE = 10;
+
+   _Decimal32 num = 0.0;
+   
+   // Move past any leading whitespace
+   bool space_bound = false;
+   for ( size_t i = 0; i < MAX_LEADING_WHITESPACE; ++i )
+   {
+      if ( !isspace(str[i]) )
+      {
+         space_bound = true;;
+         break;
+      }
+   }
+
+   if ( !space_bound )
+      return false;
+
+   // Loop through characters until either a max limit is reached or non-digit
+
+   // Check if remaining characters are anything other than whitespace or '\0'
+
+   return true;
+}
+
+static inline bool dec32tostr(
+      char * const str,
+      size_t maxlen,
+      _Decimal32 val )
+{
+   // TODO
+   return false;
 }
