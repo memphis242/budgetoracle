@@ -245,7 +245,7 @@ int main(int argc, char * argv[])
       // TODO: Authenticate user /w password
 
       // TODO: Execute commands
-      if ( strcmp(userinput, "add") == 0 )
+      if ( strcmp(userinput, "addt") == 0 )
       {
          char cmdargs[100];
 
