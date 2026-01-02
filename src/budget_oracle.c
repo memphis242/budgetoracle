@@ -412,7 +412,7 @@ static inline bool getUserInput(char * buf, size_t sz)
 }
 
 static inline bool strtodec64(
-      _Decimal64 * result,
+      _Decimal64 * restrict result,
       const char * const restrict str )
 {
    assert(result != nullptr);
@@ -449,10 +449,16 @@ static inline bool strtodec64(
    bool rounding_performed = false;
 
    size_t i = 0;
-   for ( ; i < MAX_NUM_LEN; ++i )
+   for ( ; i < MAX_NUM_LEN && str[i] != '\0'; ++i )
    {
       if ( str[i] == '.' )
       {
+         if ( found_decimal_point )
+         {
+            valid_chars = false;
+            break;
+         }
+
          found_decimal_point = true;
          continue;
       }
