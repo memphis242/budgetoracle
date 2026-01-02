@@ -2,14 +2,14 @@
 ## How It'll Look (Most of the Time)
 
 ```bash
-> budget-oracle
+> budget_oracle
 Welcome, welcome, my child.
 Today's Date: 12-31-2025
 
-budget-oracle > print budget 1 in 10 days
+budget_oracle > print budget 1 in 10 days
 Balance: $820.25
 
-budget-oracle > print budget 1 up to 10 days from now
+budget_oracle > print budget 1 up to 10 days from now
 Today's Date: 12/30/2025
 Today's Balance: $1021.58
 
@@ -24,13 +24,13 @@ Today's Balance: $1021.58
 01/08/2026: $1842.98
 01/09/2026: $ 820.25
 
-budget-oracle > can i spend $450 on 01/25/2026?
+budget_oracle > can i spend $450 on 01/25/2026?
 Yes!
 - Balance on 01/25/2026 as things stand pre-transaction would be: $1041.21, 
 - Balance after transaction: $591.21
 - Budget will be in-tact through to the next month, remaining above pre-configured minimum of $150.00
 
-budget-oracle > can i spend $450 on 01/25/2026 while remaining whole through to 03/15/2026[?]
+budget_oracle > can i spend $450 on 01/25/2026 while remaining whole through to 03/15/2026[?]
 No. Your budget minimum will be breached on 03/05/2026.
 - Balance going into 03/05/2026: $201.50
 - Transactions on that day:
@@ -38,10 +38,10 @@ No. Your budget minimum will be breached on 03/05/2026.
     - $50.00 for "planned purchase of item Y"
 - Balance after: $129.51, which is $20.49 below the pre-configured minimum of $150.00
 
-budget-oracle > what transactions are set for 02/21/2026?
+budget_oracle > what transactions are set for 02/21/2026?
 None.
 
-budget-oracle > what transactions are set for 03/01/2026?
+budget_oracle > what transactions are set for 03/01/2026?
 - $9.99 for "subscription X"
 - $100.00 for "loan Y"
 ```
