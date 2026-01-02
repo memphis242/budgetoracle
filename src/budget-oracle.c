@@ -176,10 +176,11 @@ int main(int argc, char * argv[])
 
       // Technically, any printf-like call may report an error, but I'm not going
       // to check each and every call. Instead, I'll check these first couple of
-      // calls, and assume the subsequent calls for the loop will be fine.
+      // calls, and assume the subsequent calls for the loop will be fine if
+      // these are fine.
       // If an error does indeed occur, we break immediately and assume we can't
       // print to stdout anymore.
-      rc = printf("\nbudget-oracle > ");
+      rc = printf("\nbudget_oracle > ");
       if ( rc < (int)((sizeof("> ") - 1)) )
       {
          mainrc |= MAINRC_UNABLE_TO_PRINT;
@@ -248,7 +249,7 @@ int main(int argc, char * argv[])
       {
          char cmdargs[100];
 
-         (void)printf("\tTransaction Type: ");
+         (void)printf("transaction type: ");
          (void)fflush(stdout);
 
          bool succeeded = getUserInput(cmdargs, sizeof cmdargs);
@@ -257,7 +258,7 @@ int main(int argc, char * argv[])
 
          if ( strcmp(cmdargs, "regular") == 0 )
          {
-            (void)printf("\tdaily, weekly, monthly, or yearly: ");
+            (void)printf("daily, weekly, monthly, or yearly: ");
             (void)fflush(stdout);
 
             succeeded = getUserInput(cmdargs, sizeof cmdargs);
