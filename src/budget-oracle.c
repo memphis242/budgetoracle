@@ -101,7 +101,6 @@ int main(int argc, char * argv[])
 {
    int mainrc = MAINRC_ALLGOOD;
    int rc; // for various system calls
-   bool able_to_time = true;
    bool able_to_print = true;
 
    GArray * budgets = g_array_new( false, /* zero_terminated */
@@ -130,18 +129,16 @@ int main(int argc, char * argv[])
    time_t nowtime = time(nullptr);
    if ( nowtime == (time_t)-1 )
    {
-      // FIXME: If we can't time(), that may be a deal-breaker... End program?
-      //        Even if all the user wanted to do was update their transaction
-      //        list, we'll probably rely on timestamping to check integrity of
-      //        the transaction list...
+      // Even if all the user wanted to do was update their transaction list,
+      // we will rely on timestamping updates to the list for the sake of
+      // integrity checking, so print an error and abort the program.
       (void)fprintf( stderr,
-               "Warning: Unable to time()\n"
+               "Error: Unable to time()\n"
                "time() returned %ld\n"
                "errno: %s (%d): %s\n",
                nowtime, strerrorname_np(errno), errno, strerror(errno) );
 
-      mainrc |= MAINRC_UNABLE_TO_TIME;
-      able_to_time = false; // TODO: Make sure this is being used downstream!
+      return MAINRC_UNABLE_TO_TIME;
    }
 
    tzset();
@@ -149,21 +146,19 @@ int main(int argc, char * argv[])
    if ( localtime_r( &nowtime, &today) == nullptr )
    {
       (void)fprintf( stderr,
-               "Warning: Unable to localtime_r()\n"
+               "Error: Unable to localtime_r()\n"
                "localtime_r() returned nullptr\n"
                "errno: %s (%d): %s\n",
                strerrorname_np(errno), errno, strerror(errno) );
 
-      mainrc |= MAINRC_UNABLE_TO_TIME;
-      able_to_time = false;
+      return MAINRC_UNABLE_TO_TIME;
    }
 
 #  ifndef NDEBUG
-   if ( able_to_time )
-      (void)printf( "Today's Date: %02d-%02d-%04d\n",
-                    today.tm_mon + 1,
-                    today.tm_mday,
-                    today.tm_year + 1900 );
+   (void)printf( "Today's Date: %02d-%02d-%04d\n",
+                 today.tm_mon + 1,
+                 today.tm_mday,
+                 today.tm_year + 1900 );
 #  endif
 
    // Welcome Message
