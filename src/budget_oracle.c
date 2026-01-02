@@ -26,6 +26,10 @@
 #define strerrorname_np(str) "strerrorname_np() NOT IMPLEMENTED"
 #endif
 
+//#ifndef __STDC_IEC_60559_DFP__
+//#  warning "__STDC_IEC_60559_DFP__ is not defined, so DFP support is limited."
+//#endif
+
 /*** External Objects ***/
 extern const char * const WelcomeMsgs[];
 extern const size_t WelcomeMsgsLen;
@@ -38,24 +42,6 @@ constexpr char TESTFILE[] = "./test.tl"; // .tl stands for "transaction list"
 
 /*** File-Scope Variables ***/
 static volatile sig_atomic_t bUserEndedSession = false;
-
-/*** Forward Function Declarations ***/
-static void handleSIGINT(int signum);
-static inline bool isNulTerminated(char str[]);
-static inline void toLowercase(char arr[], size_t len);
-static inline bool getUserInput(char * buf, size_t sz);
-// As of the time of this writing (Jan 2, 2026), there still isn't much support
-// for decimal FP I/O formatting... So, I need to implement my own, although...
-// TODO: Look into using IBM's libdfp...
-static inline bool strtodec64(
-      _Decimal64 * result,
-      const char * const restrict str );
-
-static inline bool dec64tostr(
-      char * const str,
-      size_t maxlen,
-      _Decimal64 val );
-{
 
 /*** Local Types ***/
 // TODO: Put these RC's into an X-macro header so that you can also create an strerror_np() kind of lookup
@@ -72,9 +58,18 @@ enum MainRC
 // TODO: Maybe abstract away the data structure implementation /w wrappers, so I can switch out the
 //       underlying libraries easier...
 
+// Even though C23 supposedly comes with decimal floating-point support, the support
+// through the available compilers (gcc, clang, etc.) is super lackluster. So,
+// we'll just go the fixed-point route for now.
+struct Amount
+{
+   int64_t integral;
+   int8_t fractional; // Up to 2 fractional digits, [00, 99]
+};
+
 struct Transaction
 {
-   _Decimal64 amount;
+   struct Amount amount;
    const char * desc;
 };
 
@@ -106,9 +101,30 @@ struct TransactionList
 struct Budget
 {
    uint8_t id;
-   _Decimal64 curr_balance;
+   struct Amount curr_balance;
    struct TransactionList transactions;
 };
+
+/*** Forward Function Declarations ***/
+static void handleSIGINT(int signum);
+
+[[nodiscard]] static inline bool isNulTerminated(const char str[]);
+
+static inline void toLowercase(char arr[], size_t len);
+
+[[nodiscard]] static inline bool getUserInput(char * buf, size_t sz);
+//
+// As of the time of this writing (Jan 2, 2026), there still isn't much support
+// for decimal FP I/O formatting... So, I need to implement my own, although...
+// TODO: Look into using IBM's libdfp...
+static inline bool strtoamount(
+      struct Amount * result,
+      const char * const restrict str );
+
+static inline bool amounttostr(
+      char * const str,
+      size_t maxlen,
+      struct Amount val );
 
 /******************************************************************************/
 int main(int argc, char * argv[])
@@ -291,9 +307,9 @@ int main(int argc, char * argv[])
                // TODO: Account for different currencies
 
                // TODO: Convert decimal FP number string to number
-               _Decimal64 num = 0.0df;
+               struct Amount num;
 
-               (void)printf("Number received after conversion: %H\n", num);
+               //(void)printf("Number received after conversion: %H\n", num);
 
                char amount[16] = {0};
                // TODO: Get decimal floating-point input from user...
@@ -356,7 +372,7 @@ static void handleSIGINT(int signum)
    bUserEndedSession = true;
 }
 
-static inline bool isNulTerminated(char str[])
+[[nodiscard]] static inline bool isNulTerminated(const char str[])
 {
    assert(str != nullptr);
 
@@ -375,7 +391,7 @@ static inline void toLowercase(char arr[], size_t len)
       *ptr = (char)tolower(*ptr);
 }
 
-static inline bool getUserInput(char * buf, size_t sz)
+[[nodiscard]] static inline bool getUserInput(char * buf, size_t sz)
 {
    if ( fgets(buf, (int)sz, stdin) == nullptr )
    {
@@ -411,16 +427,16 @@ static inline bool getUserInput(char * buf, size_t sz)
    return true;
 }
 
-static inline bool strtodec64(
-      _Decimal64 * restrict result,
+static inline bool strtoamount(
+      struct Amount * restrict result,
       const char * const restrict str )
 {
    assert(result != nullptr);
    assert(str != nullptr);
-   assert(IsNulTerminated(str));
+   assert(isNulTerminated(str));
 
    constexpr size_t MAX_NUM_LEN = 15; // A man can dream... ☁ 
-   constexpr uint64_t MAX_NUM = 999'999'999'999'999; 
+   constexpr int64_t MAX_NUM = 999'999'999'999'999; 
    constexpr size_t MAX_LEADING_WHITESPACE = 10;
 
    // Move past any leading whitespace
@@ -441,9 +457,10 @@ static inline bool strtodec64(
 
    // Loop through characters until either a max limit is reached or non-digit
    // and parse out the digits
-   uint64_t integral_part = 0;
-   uint8_t fractional_part = 0; // I'm expecting that fractional digits [00, 99]
+   int64_t integral_part = 0;
+   int8_t fractional_part = 0; // I'm expecting that fractional digits [00, 99]
    uint8_t fractional_part_len = 0; // Shouldn't be > 2
+   bool sign = false;
    bool valid_chars = true;
    bool found_decimal_point = false;
    bool rounding_performed = false;
@@ -451,6 +468,17 @@ static inline bool strtodec64(
    size_t i = 0;
    for ( ; i < MAX_NUM_LEN && str[i] != '\0'; ++i )
    {
+      if ( str[i] == '-' && !sign )
+      {
+         sign = true;
+         continue;
+      }
+      else
+      {
+         valid_chars = false;
+         break;
+      }
+
       if ( str[i] == '.' )
       {
          if ( found_decimal_point )
@@ -475,12 +503,15 @@ static inline bool strtodec64(
       {
          if ( !rounding_performed && fractional_part_len < 2 )
          {
-            fractional_part = (fractional_part * 10) + digit;
+            assert(fractional_part <= 9);
+            fractional_part = (int8_t)((fractional_part * 10) + digit);
          }
          else if ( fractional_part_len >= 2 )
          {
             // Round, then we'll ignore subsequent digits
-            fractional_part += (digit >= 5);
+            if ( digit >= 5 )
+               fractional_part++;
+
             assert(fractional_part <= 100);
             rounding_performed = true;
          }
@@ -503,9 +534,15 @@ static inline bool strtodec64(
       }
    }
 
+   if ( sign )
+   {
+      integral_part *= -1;
+      fractional_part *= -1;
+   }
+
    assert(fractional_part_len < MAX_NUM_LEN);
-   assert(fractional_part <= 99);
-   assert(integral_part <= MAX_NUM);
+   assert(abs(fractional_part) <= 99);
+   assert(llabs(integral_part) <= MAX_NUM);
 
    if ( i >= MAX_NUM_LEN || !valid_chars )
       return false;
@@ -514,42 +551,38 @@ static inline bool strtodec64(
    {
       (void)fprintf(stderr,
                "Warning: Rounding to two fractional digits! %hhu detected.\n",
-               fractional_digits_len );
+               fractional_part_len );
    }
 
    // Perform conversion
-   _Decimal64 fraction;
-   switch( fractional_part_len )
-   {
-      case 0:
-         fraction = 0.00df;
-         break;
+   result->integral = integral_part;
+   result->fractional = fractional_part;
 
-      case 1:
-         fraction = (_Decimal64)fractional_part / 10.0df;
-         break;
-
-      default:
-         fraction = (_Decimal64)fractional_part / 100.0df;
-         break;
-   }
-   assert( fraction >= 0.00df );
-   assert( fraction <= 0.99df );
-
-   _Decimal64 num = (_Decimal64)integral_part + fraction;
-
-   assert( num >= 0.00df );
-   assert( num <= (_Decimal64)(MAX_NUM) );
-
-   *result = num;
    return true;
 }
 
-static inline bool dec64tostr(
+static inline bool amounttostr(
       char * const str,
       size_t maxlen,
-      _Decimal64 val )
+      struct Amount val )
 {
-   // TODO
-   return false;
+   constexpr size_t MAX_DIGITS = 16;
+
+   assert(str != nullptr);
+   assert(maxlen > 0);
+
+   // This'll be a pain but within the constraints of my app environment, I'm not
+   // using the float struct Amount range.
+   int exp = 0;
+
+   size_t i = 0;
+   for ( ; i <= MAX_DIGITS && i < (maxlen-1); ++i )
+   {
+   }
+
+   assert(i < MAX_DIGITS);
+   assert(i < (maxlen-1));
+   str[i] = '\0';
+
+   return true;
 }
