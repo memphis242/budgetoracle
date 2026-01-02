@@ -47,14 +47,14 @@ static inline bool getUserInput(char * buf, size_t sz);
 // As of the time of this writing (Jan 2, 2026), there still isn't much support
 // for decimal FP I/O formatting... So, I need to implement my own, although...
 // TODO: Look into using IBM's libdfp...
-static inline bool strtodec32(
-      _Decimal32 * result,
+static inline bool strtodec64(
+      _Decimal64 * result,
       const char * const restrict str );
 
-static inline bool dec32tostr(
+static inline bool dec64tostr(
       char * const str,
       size_t maxlen,
-      _Decimal32 val );
+      _Decimal64 val );
 {
 
 /*** Local Types ***/
@@ -74,7 +74,7 @@ enum MainRC
 
 struct Transaction
 {
-   _Decimal32 amount;
+   _Decimal64 amount;
    const char * desc;
 };
 
@@ -106,7 +106,7 @@ struct TransactionList
 struct Budget
 {
    uint8_t id;
-   _Decimal32 curr_balance;
+   _Decimal64 curr_balance;
    struct TransactionList transactions;
 };
 
@@ -291,7 +291,7 @@ int main(int argc, char * argv[])
                // TODO: Account for different currencies
 
                // TODO: Convert decimal FP number string to number
-               _Decimal32 num = 0.0df;
+               _Decimal64 num = 0.0df;
 
                (void)printf("Number received after conversion: %H\n", num);
 
@@ -411,26 +411,25 @@ static inline bool getUserInput(char * buf, size_t sz)
    return true;
 }
 
-static inline bool strtodec32(
-      _Decimal32 * result,
+static inline bool strtodec64(
+      _Decimal64 * result,
       const char * const restrict str )
 {
    assert(result != nullptr);
    assert(str != nullptr);
    assert(IsNulTerminated(str));
 
-   constexpr size_t MAX_NUM_LEN = 15;
+   constexpr size_t MAX_NUM_LEN = 15; // A man can dream... ☁ 
+   constexpr uint64_t MAX_NUM = 999'999'999'999'999; 
    constexpr size_t MAX_LEADING_WHITESPACE = 10;
 
-   _Decimal32 num = 0.0;
-   
    // Move past any leading whitespace
    bool space_bound = false;
    for ( size_t i = 0; i < MAX_LEADING_WHITESPACE; ++i )
    {
       if ( !isspace(str[i]) )
       {
-         space_bound = true;;
+         space_bound = true;
          break;
       }
    }
@@ -438,17 +437,112 @@ static inline bool strtodec32(
    if ( !space_bound )
       return false;
 
+   // TODO: Investigate more efficient conversion algorithms...
+
    // Loop through characters until either a max limit is reached or non-digit
+   // and parse out the digits
+   uint64_t integral_part = 0;
+   uint8_t fractional_part = 0; // I'm expecting that fractional digits [00, 99]
+   uint8_t fractional_part_len = 0; // Shouldn't be > 2
+   bool valid_chars = true;
+   bool found_decimal_point = false;
+   bool rounding_performed = false;
 
-   // Check if remaining characters are anything other than whitespace or '\0'
+   size_t i = 0;
+   for ( ; i < MAX_NUM_LEN; ++i )
+   {
+      if ( str[i] == '.' )
+      {
+         found_decimal_point = true;
+         continue;
+      }
 
+      if ( !isdigit(str[i]) )
+      {
+         valid_chars = false;
+         break;
+      }
+
+      uint8_t digit = (uint8_t)(str[i] - '0');
+
+      if ( found_decimal_point )
+      {
+         if ( !rounding_performed && fractional_part_len < 2 )
+         {
+            fractional_part = (fractional_part * 10) + digit;
+         }
+         else if ( fractional_part_len >= 2 )
+         {
+            // Round, then we'll ignore subsequent digits
+            fractional_part += (digit >= 5);
+            assert(fractional_part <= 100);
+            rounding_performed = true;
+         }
+
+         if ( fractional_part == 100 )
+         {
+            integral_part++;
+            fractional_part = 0;
+         }
+
+         assert(fractional_part <= 99);
+         assert(fractional_part_len < MAX_NUM_LEN);
+
+         fractional_part_len++;
+      }
+      else
+      {
+         assert(integral_part < ((MAX_NUM - digit) / 10) );
+         integral_part = (integral_part * 10) + digit;
+      }
+   }
+
+   assert(fractional_part_len < MAX_NUM_LEN);
+   assert(fractional_part <= 99);
+   assert(integral_part <= MAX_NUM);
+
+   if ( i >= MAX_NUM_LEN || !valid_chars )
+      return false;
+
+   if ( fractional_part_len > 2 )
+   {
+      (void)fprintf(stderr,
+               "Warning: Rounding to two fractional digits! %hhu detected.\n",
+               fractional_digits_len );
+   }
+
+   // Perform conversion
+   _Decimal64 fraction;
+   switch( fractional_part_len )
+   {
+      case 0:
+         fraction = 0.00df;
+         break;
+
+      case 1:
+         fraction = (_Decimal64)fractional_part / 10.0df;
+         break;
+
+      default:
+         fraction = (_Decimal64)fractional_part / 100.0df;
+         break;
+   }
+   assert( fraction >= 0.00df );
+   assert( fraction <= 0.99df );
+
+   _Decimal64 num = (_Decimal64)integral_part + fraction;
+
+   assert( num >= 0.00df );
+   assert( num <= (_Decimal64)(MAX_NUM) );
+
+   *result = num;
    return true;
 }
 
-static inline bool dec32tostr(
+static inline bool dec64tostr(
       char * const str,
       size_t maxlen,
-      _Decimal32 val )
+      _Decimal64 val )
 {
    // TODO
    return false;
