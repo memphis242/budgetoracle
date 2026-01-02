@@ -34,4 +34,5 @@ gcc \
     -D_POSIX_C_SOURCE=200809L \
     $(pkg-config --cflags --libs glib) \
     -o build/budget-oracle \
-    src/budget-oracle.c
+    src/budget-oracle.c \
+    src/welcome_msgs.c

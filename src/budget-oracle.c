@@ -25,6 +25,10 @@
 #define strerrorname_np(str) "strerrorname_np() NOT IMPLEMENTED"
 #endif
 
+/*** External Objects ***/
+extern const char * const WelcomeMsgs[];
+extern const size_t WelcomeMsgsLen;
+
 /*** Macro/constexpr Functions ***/
 #define ARR_LEN(arr) ( sizeof(arr) / sizeof(arr[0]) )
 #define TO_LOWER(arr)
@@ -33,18 +37,6 @@ constexpr char TESTFILE[] = "./test.tl"; // .tl stands for "transaction list"
 
 /*** File-Scope Variables ***/
 static volatile sig_atomic_t bUserEndedSession = false;
-
-static const char * const WelcomeMsgs[] =
-{
-   "You are now speaking to the budget oracle 💸🔮... OoooOoOoooo",
-   "So... You wish to peek into your fiscal future!",
-   "Welcome, welcome, my child.",
-   "To face life, we must at times be bold... In our hands, the future, we hold!",
-   "This is the budget oracle speaking, please hold.",
-   "You again?",
-   "What's up doc?",
-   "It's been so long, where have you been? Am I not, your next of kin!"
-};
 
 /*** Forward Function Declarations ***/
 static void handleSIGINT(int signum);
@@ -175,8 +167,8 @@ int main(int argc, char * argv[])
 
    // Welcome Message
    srand( (unsigned int)time(nullptr) );
-   size_t welcome_msg_idx = (size_t)rand() % ARR_LEN(WelcomeMsgs);
-   assert( welcome_msg_idx < ARR_LEN(WelcomeMsgs) );
+   size_t welcome_msg_idx = (size_t)rand() % WelcomeMsgsLen;
+   assert( welcome_msg_idx < WelcomeMsgsLen );
    (void)printf( "%s\n", WelcomeMsgs[welcome_msg_idx] );
 
    // The Main REPL Loop
