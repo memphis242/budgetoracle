@@ -41,6 +41,7 @@ static volatile sig_atomic_t bUserEndedSession = false;
 /*** Forward Function Declarations ***/
 static void handleSIGINT(int signum);
 static inline void toLowercase(char arr[], size_t len);
+static inline bool getUserInput(char * buf, size_t sz);
 
 /*** Local Types ***/
 // TODO: Put these RC's into an X-macro header so that you can also create an strerror_np() kind of lookup
@@ -255,26 +256,18 @@ int main(int argc, char * argv[])
          (void)printf("\tTransaction Type: ");
          (void)fflush(stdout);
 
-         if ( fgets(cmdargs, sizeof cmdargs, stdin) == nullptr )
-         {
-            clearerr(stdin); // Removes EOF from stream
-            printf("\nExiting command...\n");
+         bool succeeded = getUserInput(cmdargs, sizeof cmdargs);
+         if ( !succeeded )
             continue;
-         }
-         toLowercase(cmdargs, sizeof cmdargs);
 
          if ( strcmp(cmdargs, "regular") == 0 )
          {
             (void)printf("\tdaily, weekly, monthly, or yearly: ");
             (void)fflush(stdout);
 
-            if ( fgets(cmdargs, sizeof cmdargs, stdin ) == nullptr )
-            {
-               clearerr(stdin); // Removes EOF from stream
-               printf("\nExiting command...\n");
+            succeeded = getUserInput(cmdargs, sizeof cmdargs);
+            if ( !succeeded )
                continue;
-            }
-            toLowercase(cmdargs, sizeof cmdargs);
 
             if ( strcmp(cmdargs, "daily") == 0 )
             {
@@ -341,4 +334,40 @@ static inline void toLowercase(char arr[], size_t len)
 {
    for ( char * ptr = arr; ptr != nullptr && ptr < (arr + len) && *ptr != '\0'; ++ptr )
       *ptr = (char)tolower(*ptr);
+}
+
+static inline bool getUserInput(char * buf, size_t sz)
+{
+   if ( fgets(buf, (int)sz, stdin) == nullptr )
+   {
+      // Either EOF encountered /wo other characters preceding it or I/O
+      // interruption occured. Either way, time to exit gracefully.
+      clearerr(stdin);
+      printf("\nExiting command...\n");
+      return false;
+   }
+
+   // Replace newline /w null-termination
+   char * newlineptr = memchr(buf, '\n', sz);
+   if ( nullptr == newlineptr )
+   {
+      // There were more characters than the size of the input buffer to fgets()
+      // Clear the remaining characters in stdin...
+      int c;
+      while ( (c = fgetc(stdin)) != '\n' && c != EOF );
+
+      // Take this as an invalid input and request the user to try again.
+      (void)fprintf( stderr,
+               "Error: Too many characters in user input encountered.\n"
+               "Please try again.\n" );
+
+      return false;
+   }
+   assert( newlineptr < (buf + sz) );
+   *newlineptr = '\0';
+
+   // User input will be treated as case-insensitive
+   toLowercase(buf, sz);
+
+   return true;
 }
