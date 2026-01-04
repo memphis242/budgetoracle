@@ -60,3 +60,6 @@ dkms.conf
 # vim
 *.swp
 tags
+
+# Sensitive info
+core.*
