@@ -12,6 +12,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <limits.h>
+#include <inttypes.h>
 #include <string.h>
 #include <ctype.h>
 #include <stdatomic.h>
@@ -126,8 +127,8 @@ static inline void toLowercase(char arr[], size_t len);
 // for decimal FP I/O formatting... So, I need to implement my own, although...
 // TODO: Look into using IBM's libdfp...
 static inline bool strtoamount(
-      struct Amount * result,
-      const char * const restrict str );
+      const char * const restrict str,
+      struct Amount * restrict result );
 
 static inline bool amounttostr(
       char * const str,
@@ -297,7 +298,7 @@ int main(int argc, char * argv[])
       // TODO: Execute commands
       if ( strcmp(userinput, "addt") == 0 )
       {
-         char cmdargs[100];
+         char cmdargs[1024];
 
          (void)printf("transaction type: ");
          (void)fflush(stdout);
@@ -317,22 +318,47 @@ int main(int argc, char * argv[])
 
             if ( strcmp(cmdargs, "daily") == 0 )
             {
-               (void)printf("amount: ");
-               (void)fflush(stdout);
+               succeeded = false;
+               size_t amount_entries = 0;
+               struct Amount num = { .integral = 123'456'789, .fractional = -123 };
+               bool user_cancelled = false;
 
-               succeeded = getUserInput(cmdargs, sizeof cmdargs);
-               if ( !succeeded )
+               while ( !succeeded && amount_entries++ < WHILE_LOOP_CAP )
+               {
+                  (void)printf("amount: ");
+                  (void)fflush(stdout);
+
+                  succeeded = getUserInput(cmdargs, sizeof cmdargs);
+                  if ( !succeeded )
+                  {
+                     user_cancelled = true;
+                     break;
+                  }
+
+                  // TODO: Account for different currencies
+
+                  // TODO: Convert decimal number string to my struct Amount
+                  succeeded = strtoamount(cmdargs, &num);
+                  if ( !succeeded )
+                  {
+                     (void)fprintf( stderr, "Invalid number entered. Try again.\n" );
+                     continue;
+                  }
+               }
+
+               if ( user_cancelled )
                   continue;
 
-               // TODO: Account for different currencies
+               assert(amount_entries < WHILE_LOOP_CAP);
+               assert(succeeded);
+               assert(num.integral != 123'456'789 && num.fractional != -123);
 
-               // TODO: Convert decimal FP number string to number
-               struct Amount num;
+               char amountstr[32] = {0};
+               succeeded = amounttostr(amountstr, sizeof amountstr, num);
+               assert(isNulTerminated(amountstr));
+               (void)printf("Number received after conversion: %s\n", amountstr);
 
-               //(void)printf("Number received after conversion: %H\n", num);
-
-               char amount[16] = {0};
-               // TODO: Get decimal floating-point input from user...
+               // TODO: Add to budget transaction list...
 
             }
             else if ( strcmp(cmdargs, "monthly") == 0 )
@@ -345,7 +371,9 @@ int main(int argc, char * argv[])
             }
             else
             {
-               (void)printf("Invalid argument: %s. Please try again.\n", cmdargs);
+               (void)printf("Invalid argument: %s\n"
+                            "Please try again.\n",
+                            cmdargs);
                continue;
             }
          }
@@ -357,7 +385,9 @@ int main(int argc, char * argv[])
 
          else
          {
-            (void)printf("Invalid argument: %s. Please try again.\n", cmdargs);
+            (void)printf("Invalid argument: %s\n"
+                         "Please try again.\n",
+                         cmdargs);
             continue;
          }
       }
@@ -442,14 +472,15 @@ static inline void toLowercase(char arr[], size_t len)
    *newlineptr = '\0';
 
    // User input will be treated as case-insensitive
+   // FIXME: Maybe use an enum argument flag to do this?
    toLowercase(buf, sz);
 
    return true;
 }
 
 static inline bool strtoamount(
-      struct Amount * restrict result,
-      const char * const restrict str )
+      const char * const restrict str,
+      struct Amount * restrict result )
 {
    assert(result != nullptr);
    assert(str != nullptr);
@@ -488,13 +519,14 @@ static inline bool strtoamount(
    size_t i = 0;
    for ( ; i < MAX_NUM_LEN && str[i] != '\0'; ++i )
    {
-      if ( str[i] == '-' && !sign )
+      if ( str[i] == '-' )
       {
-         sign = true;
-         continue;
-      }
-      else
-      {
+         if ( !sign )
+         {
+            sign = true;
+            continue;
+         }
+
          valid_chars = false;
          break;
       }
@@ -564,13 +596,15 @@ static inline bool strtoamount(
    assert(abs(fractional_part) <= 99);
    assert(llabs(integral_part) <= MAX_NUM);
 
-   if ( i >= MAX_NUM_LEN || !valid_chars )
+   if ( (i >= MAX_NUM_LEN && str[i] != '\0') || !valid_chars )
       return false;
 
-   if ( fractional_part_len > 2 )
+   if ( rounding_performed )
    {
       (void)fprintf(stderr,
-               "Warning: Rounding to two fractional digits! %hhu detected.\n",
+               "Warning: Rounded down to two fractional digits: %"PRId64".%"PRId8"\n"
+               "         %hhu fractional digits were detected.\n",
+               integral_part, fractional_part,
                fractional_part_len );
    }
 
@@ -586,23 +620,18 @@ static inline bool amounttostr(
       size_t maxlen,
       struct Amount val )
 {
-   constexpr size_t MAX_DIGITS = 16;
-
    assert(str != nullptr);
    assert(maxlen > 0);
 
-   // This'll be a pain but within the constraints of my app environment, I'm not
-   // using the float struct Amount range.
-   int exp = 0;
+   int nbytes = snprintf( str, maxlen,
+                          "%"PRId64".%"PRId8,
+                          val.integral, abs(val.fractional) );
 
-   size_t i = 0;
-   for ( ; i <= MAX_DIGITS && i < (maxlen-1); ++i )
+   if ( nbytes < 0 || (size_t)nbytes >= maxlen )
    {
+      *str = '\0'; // help prevent use of partially written out amount
+      return false;
    }
-
-   assert(i < MAX_DIGITS);
-   assert(i < (maxlen-1));
-   str[i] = '\0';
 
    return true;
 }
