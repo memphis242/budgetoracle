@@ -15,10 +15,18 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdatomic.h>
-#include <signal.h>
-#include <time.h>
+
+// Error Handling
 #include <errno.h>
 #include <assert.h>
+
+// System Headers
+#include <signal.h>
+#ifndef NDEBUG
+#include <sys/resource.h> // to setrlimit() on RLIMIT_CORE
+#endif
+#include <time.h>
+
 // 3rd Party Library Headers
 #include <glib.h>
 
@@ -132,6 +140,18 @@ int main(int argc, char * argv[])
    int mainrc = MAINRC_ALLGOOD;
    int rc; // for various system calls
    bool able_to_print = true;
+
+#  ifndef NDEBUG
+   struct rlimit core_rlim = { .rlim_cur = RLIM_INFINITY, .rlim_max = RLIM_INFINITY };
+   rc = setrlimit( RLIMIT_CORE, &core_rlim );
+   if ( rc != 0 )
+   {
+      (void)fprintf( stderr,
+               "Warning: setrlimit() failed, so coredumps might not work.\n"
+               "         Returned: %d, errno: %s (%d): %s\n",
+               rc, strerrorname_np(errno), errno, strerror(errno) );
+   }
+#  endif
 
    GArray * budgets = g_array_new( false, /* zero_terminated */
                                    true,  /* clear_ */
