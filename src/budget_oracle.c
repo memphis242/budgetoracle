@@ -353,10 +353,20 @@ int main(int argc, char * argv[])
                assert(succeeded);
                assert(num.integral != 123'456'789 && num.fractional != -123);
 
+#              ifndef NDEBUG
                char amountstr[32] = {0};
                succeeded = amounttostr(amountstr, sizeof amountstr, num);
+
+               // If amounttostr failed here, most likely I passed in either a
+               // string buffer that was too small or an amount that had way too
+               // many significant digits. Either way, I'd want to abort and see
+               // the coredump's num, knowing the size of amountstr I've passed
+               // in. If it looks fine, then snprintf() somehow failed internally.
+               assert(succeeded);
                assert(isNulTerminated(amountstr));
+
                (void)printf("Number received after conversion: %s\n", amountstr);
+#              endif // NDEBUG
 
                // TODO: Add to budget transaction list...
 
