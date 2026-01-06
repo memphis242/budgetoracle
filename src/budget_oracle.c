@@ -302,7 +302,7 @@ int main(int argc, char * argv[])
       {
          char cmdargs[1024];
 
-         (void)printf("transaction type: ");
+         (void)printf("\tTransaction Type (regular or one-off): ");
          (void)fflush(stdout);
 
          bool succeeded = getUserInput(cmdargs, sizeof cmdargs);
@@ -312,7 +312,7 @@ int main(int argc, char * argv[])
 
          if ( strcmp(cmdargs, "regular") == 0 )
          {
-            (void)printf("daily, weekly, monthly, or yearly: ");
+            (void)printf("\tFrequency (daily, weekly, monthly, or yearly): ");
             (void)fflush(stdout);
 
             succeeded = getUserInput(cmdargs, sizeof cmdargs);
@@ -329,7 +329,7 @@ int main(int argc, char * argv[])
 
                while ( !succeeded && amount_entries++ < WHILE_LOOP_CAP )
                {
-                  (void)printf("amount: ");
+                  (void)printf("\tAmount: ");
                   (void)fflush(stdout);
 
                   succeeded = getUserInput(cmdargs, sizeof cmdargs);
@@ -338,11 +338,62 @@ int main(int argc, char * argv[])
                      user_cancelled = true;
                      break;
                   }
+                  assert(isNulTerminated(cmdargs));
 
-                  // TODO: Account for different currencies
+                  bool cleared_leading_whitespace = false;
+                  bool invalid_input = false;
+                  char * numstr_start = nullptr;
+                  const char * invalid_err = nullptr;
+                  // TODO: Save currency as part of budget transaction list. It
+                  //       needs to be consistent!
 
-                  // TODO: Convert decimal number string to my struct Amount
-                  succeeded = strtoamount(cmdargs, &num);
+                  for ( size_t i = 0; (i < sizeof cmdargs) && (cmdargs[i] != '\0'); ++i )
+                  {
+                     if ( !isspace(cmdargs[i]) && !cleared_leading_whitespace )
+                     {
+                        cleared_leading_whitespace = true;
+                     }
+                     
+                     if ( isspace(cmdargs[i]) )
+                     {
+                        // TODO: I should allow one space after the currency symbol
+                        if ( cleared_leading_whitespace )
+                        {
+                           invalid_err = "Error: Invalid Input: Whitespace detected after\n"
+                                         "leading whitespaces but before number.\n";
+                           invalid_input = true;
+                           break;
+                        }
+
+                        continue;
+                     }
+
+                     assert(cleared_leading_whitespace);
+
+                     if ( isdigit(cmdargs[i]) )
+                     {
+                        numstr_start = &cmdargs[i];
+                        break;
+                     }
+                     // TODO: Support other currencies
+                     else if ( cmdargs[i] != '$' )
+                     {
+                        invalid_input = true;
+                        invalid_err = "Error: Invalid Input: Currency unsupported.\n"; // FIXME: Remove
+                        break;
+                     }
+                  }
+
+                  if ( invalid_input )
+                  {
+                     assert(invalid_err != nullptr);
+                     (void)fprintf(stderr, "%s", invalid_err);
+                     succeeded = false;
+                     continue;
+                  }
+
+                  assert(numstr_start != nullptr);
+                  succeeded = strtoamount(numstr_start, &num);
                   if ( !succeeded )
                   {
                      (void)fprintf( stderr, "Invalid number entered. Try again.\n" );
@@ -373,7 +424,7 @@ int main(int argc, char * argv[])
 #              endif // NDEBUG
 
                // TODO: Add to budget transaction list...
-
+               
             }
             else if ( strcmp(cmdargs, "monthly") == 0 )
             {
