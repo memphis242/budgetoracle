@@ -289,6 +289,8 @@ int main(int argc, char * argv[])
       // Commands will be treated as case-insensitive
       toLowercase(userinput, sizeof userinput);
 
+      assert(isNulTerminated(userinput));
+
       // Check for quit commands
       if ( strcmp(userinput, "exit") == 0 || strcmp(userinput, "quit") == 0 )
          break;
@@ -306,6 +308,7 @@ int main(int argc, char * argv[])
          bool succeeded = getUserInput(cmdargs, sizeof cmdargs);
          if ( !succeeded )
             continue;
+         assert(isNulTerminated(cmdargs));
 
          if ( strcmp(cmdargs, "regular") == 0 )
          {
@@ -315,6 +318,7 @@ int main(int argc, char * argv[])
             succeeded = getUserInput(cmdargs, sizeof cmdargs);
             if ( !succeeded )
                continue;
+            assert(isNulTerminated(cmdargs));
 
             if ( strcmp(cmdargs, "daily") == 0 )
             {
